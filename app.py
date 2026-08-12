@@ -7,10 +7,9 @@ from langchain_chroma import Chroma
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from transformers import pipeline
 
 APP_DIR = Path(__file__).resolve().parent
-CHROMA_DIR = APP_DIR / "chroma_db"
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 LLM_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
 
@@ -58,11 +57,12 @@ def build_vectorstore(pdf_path: str):
     )
     chunks = splitter.split_documents(documents)
 
+    # Keep the active document isolated in an in-memory collection. This prevents
+    # chunks from an earlier PDF session from contaminating the current retrieval set.
     _vectorstore = Chroma.from_documents(
         documents=chunks,
         embedding=get_embeddings(),
-        collection_name="day11_rag",
-        persist_directory=str(CHROMA_DIR),
+        collection_name="day11_rag_active",
     )
     _current_pdf = Path(pdf_path).name
     return f"Indexed **{_current_pdf}**: {len(documents)} page(s), {len(chunks)} chunk(s)."
@@ -102,12 +102,16 @@ def generate_answer(prompt: str) -> str:
 
 def ask_pdf(question: str, history: list[dict[str, Any]]):
     if not question or not question.strip():
-        return "Please enter a question.", history
+        return history
     if _vectorstore is None:
-        return "Please upload and index a PDF first.", history
+        answer = "Please upload and index a PDF first."
+        new_history = list(history)
+        new_history.extend([
+            {"role": "user", "content": question},
+            {"role": "assistant", "content": answer},
+        ])
+        return new_history
 
-    # Memory-aware retrieval: include recent conversation so follow-up questions
-    # such as “What about the second option?” retain their context.
     history_text = format_history(history)
     retrieval_query = f"Conversation:\n{history_text}\n\nCurrent question: {question}"
     docs = _vectorstore.similarity_search(retrieval_query, k=4)
@@ -116,14 +120,14 @@ def ask_pdf(question: str, history: list[dict[str, Any]]):
     sources = []
     for doc in docs:
         page = doc.metadata.get("page")
-        source = doc.metadata.get("source", _current_pdf or "uploaded PDF")
-        label = f"{Path(source).name}, page {page + 1}" if isinstance(page, int) else Path(source).name
+        source = Path(doc.metadata.get("source", _current_pdf or "uploaded PDF")).name
+        label = f"{source}, page {page + 1}" if isinstance(page, int) else source
         context_parts.append(doc.page_content)
         sources.append(label)
 
     context = "\n\n---\n\n".join(context_parts)
     prompt = (
-        f"Use the following context from the uploaded PDF to answer the current question.\n\n"
+        "Use the following context from the uploaded PDF to answer the current question.\n\n"
         f"Context:\n{context}\n\n"
         f"Recent conversation:\n{history_text}\n\n"
         f"Current question: {question}\n\n"
@@ -139,7 +143,7 @@ def ask_pdf(question: str, history: list[dict[str, Any]]):
         {"role": "user", "content": question},
         {"role": "assistant", "content": answer},
     ])
-    return new_history, new_history
+    return new_history
 
 
 def index_pdf(pdf_file):
@@ -168,9 +172,6 @@ with gr.Blocks(title="PDF RAG Assistant") as demo:
         index_button = gr.Button("Index PDF", variant="primary")
 
     status = gr.Markdown("Upload a PDF and click **Index PDF**.")
-
-    # Gradio 6 uses the messages format by default; the older `type=` argument
-    # was removed, so omit it for compatibility with Gradio 6.x.
     chatbot = gr.Chatbot(label="Conversation", height=450)
     question = gr.Textbox(
         label="Question",
@@ -180,11 +181,15 @@ with gr.Blocks(title="PDF RAG Assistant") as demo:
         ask_button = gr.Button("Ask", variant="primary")
         clear_button = gr.Button("Clear Conversation")
 
+    def ask_for_chat(question_text, history_state):
+        new_history = ask_pdf(question_text, history_state or [])
+        return new_history, new_history
+
     index_button.click(index_pdf, inputs=pdf, outputs=status)
-    ask_button.click(ask_pdf, inputs=[question, history], outputs=[chatbot, history]).then(
+    ask_button.click(ask_for_chat, inputs=[question, history], outputs=[chatbot, history]).then(
         lambda: "", outputs=question
     )
-    question.submit(ask_pdf, inputs=[question, history], outputs=[chatbot, history]).then(
+    question.submit(ask_for_chat, inputs=[question, history], outputs=[chatbot, history]).then(
         lambda: "", outputs=question
     )
     clear_button.click(clear_chat, outputs=[chatbot, history])
