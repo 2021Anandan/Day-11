@@ -1,7 +1,8 @@
-import os
+import uuid
 from pathlib import Path
 from typing import Any
 
+import chromadb
 import gradio as gr
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import PyPDFLoader
@@ -9,13 +10,13 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from transformers import pipeline
 
-APP_DIR = Path(__file__).resolve().parent
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 LLM_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
 
 _embeddings = None
 _generator = None
 _vectorstore = None
+_chroma_client = None
 _current_pdf = None
 
 
@@ -44,7 +45,7 @@ def get_generator():
 
 
 def build_vectorstore(pdf_path: str):
-    global _vectorstore, _current_pdf
+    global _vectorstore, _chroma_client, _current_pdf
 
     if not pdf_path:
         raise ValueError("Please upload a PDF first.")
@@ -57,14 +58,18 @@ def build_vectorstore(pdf_path: str):
     )
     chunks = splitter.split_documents(documents)
 
-    # Keep the active document isolated in an in-memory collection. This prevents
-    # chunks from an earlier PDF session from contaminating the current retrieval set.
-    _vectorstore = Chroma.from_documents(
-        documents=chunks,
-        embedding=get_embeddings(),
-        collection_name="day11_rag_active",
+    # Create an explicit ephemeral Chroma client so local runs do not depend on
+    # a previously persisted/default tenant or stale collections.
+    _chroma_client = chromadb.EphemeralClient()
+    collection_name = f"day11_rag_{uuid.uuid4().hex[:12]}"
+    _vectorstore = Chroma(
+        client=_chroma_client,
+        collection_name=collection_name,
+        embedding_function=get_embeddings(),
     )
+    _vectorstore.add_documents(chunks)
     _current_pdf = Path(pdf_path).name
+
     return f"Indexed **{_current_pdf}**: {len(documents)} page(s), {len(chunks)} chunk(s)."
 
 
@@ -101,8 +106,11 @@ def generate_answer(prompt: str) -> str:
 
 
 def ask_pdf(question: str, history: list[dict[str, Any]]):
+    history = history or []
+
     if not question or not question.strip():
         return history
+
     if _vectorstore is None:
         answer = "Please upload and index a PDF first."
         new_history = list(history)
@@ -114,7 +122,8 @@ def ask_pdf(question: str, history: list[dict[str, Any]]):
 
     history_text = format_history(history)
     retrieval_query = f"Conversation:\n{history_text}\n\nCurrent question: {question}"
-    docs = _vectorstore.similarity_search(retrieval_query, k=4)
+    k = min(4, _vectorstore._collection.count())
+    docs = _vectorstore.similarity_search(retrieval_query, k=max(k, 1))
 
     context_parts = []
     sources = []
