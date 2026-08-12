@@ -13,8 +13,7 @@ from transformers import pipeline
 
 
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-LLM_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
-
+model=LLM_MODEL,
 _embeddings = None
 _generator = None
 _vectorstore = None
@@ -41,7 +40,7 @@ def get_generator():
     if _generator is None:
         _generator = pipeline(
             "text-generation",
-            LLM_MODEL = "HuggingFaceTB/SmolLM2-135M-Instruct"
+            model=LLM_MODEL,
             tokenizer=LLM_MODEL,
             device_map="auto",
             torch_dtype="auto",
