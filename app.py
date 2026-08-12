@@ -1,3 +1,4 @@
+import os
 import uuid
 from pathlib import Path
 from typing import Any
@@ -205,4 +206,8 @@ with gr.Blocks(title="PDF RAG Assistant") as demo:
 
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=int(os.environ.get("PORT", 10000))
+    )
+
