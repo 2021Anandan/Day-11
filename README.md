@@ -45,11 +45,9 @@ Grounded Answer + Source Pages
 - Qwen2.5-0.5B-Instruct
 - Gradio
 
-The notebook supplied with the assignment also covers advanced RAG topics including hybrid BM25+dense search, reranking, HyDE, and evaluation metrics such as Recall@K and MRR. fileciteturn6file1L260-L280
-
 ## Memory Implementation
 
-The application maintains recent user/assistant messages in Gradio state. For follow-up questions, recent conversation history is included in the retrieval query and generation prompt. This follows the assignment notebook's conversational-RAG approach, where previous turns are used to make follow-up questions context-aware. fileciteturn6file0L16-L21
+The application maintains recent user/assistant messages in Gradio state. For follow-up questions, recent conversation history is included in the retrieval query and generation prompt. This makes follow-up questions such as "What about the second option?" retain conversational context.
 
 ## How to Run Locally
 
@@ -86,6 +84,10 @@ Then open the local Gradio URL printed in the terminal.
 - Add multi-PDF collections and document management.
 - Deploy a public demo on Hugging Face Spaces or another supported platform.
 
-## Assignment Requirements
+## Submission Checklist
 
-The official assignment asks for complete source code, project files, `requirements.txt`, a README containing participant/project details, and a mandatory public deployment URL. It also requires submitting both the GitHub repository and deployment link in `#epochs-submissions` with `#evn-ds-epochs26-day11`. fileciteturn1file0L34-L53
+- [ ] Add Epochs MUID.
+- [ ] Verify the complete notebook/source files are in the repository.
+- [ ] Deploy the application publicly.
+- [ ] Add the public deployment URL here.
+- [ ] Submit the GitHub repository and deployment URL in `#epochs-submissions` using `#evn-ds-epochs26-day11`.
