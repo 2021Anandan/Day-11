@@ -139,7 +139,7 @@ def ask_pdf(question: str, history: list[dict[str, Any]]):
         {"role": "user", "content": question},
         {"role": "assistant", "content": answer},
     ])
-    return answer, new_history
+    return new_history, new_history
 
 
 def index_pdf(pdf_file):
@@ -169,7 +169,9 @@ with gr.Blocks(title="PDF RAG Assistant") as demo:
 
     status = gr.Markdown("Upload a PDF and click **Index PDF**.")
 
-    chatbot = gr.Chatbot(label="Conversation", type="messages", height=450)
+    # Gradio 6 uses the messages format by default; the older `type=` argument
+    # was removed, so omit it for compatibility with Gradio 6.x.
+    chatbot = gr.Chatbot(label="Conversation", height=450)
     question = gr.Textbox(
         label="Question",
         placeholder="Ask a question about the uploaded PDF...",
