@@ -11,9 +11,9 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from transformers import pipeline
 
-
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-model=LLM_MODEL,
+LLM_MODEL = "HuggingFaceTB/SmolLM2-135M-Instruct"
+
 _embeddings = None
 _generator = None
 _vectorstore = None
